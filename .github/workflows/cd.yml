@@ -1,0 +1,225 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types:
+      - completed
+    branches:
+      - main
+
+env:
+  NODE_VERSION: '18'
+  HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+  HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Heroku CLI
+        uses: akhileshns/heroku-deploy@v3.12.14
+        with:
+          heroku_api_key: ${{ env.HEROKU_API_KEY }}
+          heroku_email: ${{ env.HEROKU_EMAIL }}
+          heroku_app_name: dinnermatch-staging
+          appdir: apps/backend
+          usedocker: true
+
+      - name: Deploy to Heroku Staging
+        env:
+          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
+        run: |
+          # Login to Heroku
+          echo "$HEROKU_API_KEY" | heroku auth:token
+
+          # Set environment variables for staging
+          heroku config:set NODE_ENV=staging --app dinnermatch-staging
+          heroku config:set JWT_SECRET="${{ secrets.STAGING_JWT_SECRET }}" --app dinnermatch-staging
+          heroku config:set CLERK_SECRET_KEY="${{ secrets.STAGING_CLERK_SECRET_KEY }}" --app dinnermatch-staging
+          heroku config:set SENTRY_DSN="${{ secrets.STAGING_SENTRY_DSN }}" --app dinnermatch-staging
+
+          # Deploy backend
+          cd apps/backend
+          git init
+          heroku git:remote --app dinnermatch-staging
+          git add .
+          git commit -m "Deploy backend to staging"
+          git push heroku main --force
+
+      - name: Run database migrations on staging
+        env:
+          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
+        run: |
+          heroku run "npm run migrate:latest" --app dinnermatch-staging
+
+      - name: Run health check on staging
+        run: |
+          sleep 30  # Wait for deployment to complete
+          curl -f https://dinnermatch-staging.herokuapp.com/health || exit 1
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "🚀 Staging deployment successful! https://dinnermatch-staging.herokuapp.com"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  smoke-tests:
+    name: Smoke Tests on Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy-staging
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          npm install -g newman
+
+      - name: Run API smoke tests
+        env:
+          API_BASE_URL: https://dinnermatch-staging.herokuapp.com
+        run: |
+          # Run basic API health checks
+          curl -f $API_BASE_URL/health
+          curl -f $API_BASE_URL/api-docs
+
+      - name: Run Postman collection (if exists)
+        if: hashFiles('tests/postman/*.json') != ''
+        run: |
+          newman run tests/postman/smoke-tests.json \
+            --env-var "base_url=https://dinnermatch-staging.herokuapp.com" \
+            --reporters cli,json \
+            --reporter-json-export smoke-test-results.json
+
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: smoke-test-results
+          path: smoke-test-results.json
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [deploy-staging, smoke-tests]
+    environment: production
+    if: github.ref == 'refs/heads/main' && needs.smoke-tests.result == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Manual approval required
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: fontezbrooks  # Add your GitHub username here
+          minimum-approvals: 1
+          issue-title: "Deploy DinnerMatch to Production"
+          issue-body: |
+            Please review the staging deployment and approve production deployment.
+
+            Staging URL: https://dinnermatch-staging.herokuapp.com
+
+            Changes in this deployment:
+            ${{ github.event.head_commit.message }}
+
+      - name: Setup Heroku CLI
+        uses: akhileshns/heroku-deploy@v3.12.14
+        with:
+          heroku_api_key: ${{ env.HEROKU_API_KEY }}
+          heroku_email: ${{ env.HEROKU_EMAIL }}
+          heroku_app_name: dinnermatch-production
+          appdir: apps/backend
+          usedocker: true
+
+      - name: Deploy to Heroku Production
+        env:
+          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
+        run: |
+          # Login to Heroku
+          echo "$HEROKU_API_KEY" | heroku auth:token
+
+          # Set environment variables for production
+          heroku config:set NODE_ENV=production --app dinnermatch-production
+          heroku config:set JWT_SECRET="${{ secrets.PRODUCTION_JWT_SECRET }}" --app dinnermatch-production
+          heroku config:set CLERK_SECRET_KEY="${{ secrets.PRODUCTION_CLERK_SECRET_KEY }}" --app dinnermatch-production
+          heroku config:set SENTRY_DSN="${{ secrets.PRODUCTION_SENTRY_DSN }}" --app dinnermatch-production
+
+          # Deploy backend
+          cd apps/backend
+          git init
+          heroku git:remote --app dinnermatch-production
+          git add .
+          git commit -m "Deploy backend to production"
+          git push heroku main --force
+
+      - name: Run database migrations on production
+        env:
+          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
+        run: |
+          heroku run "npm run migrate:latest" --app dinnermatch-production
+
+      - name: Run health check on production
+        run: |
+          sleep 60  # Wait for deployment to complete
+          curl -f https://dinnermatch-production.herokuapp.com/health || exit 1
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "🎉 Production deployment successful! https://dinnermatch-production.herokuapp.com"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback-on-failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy-production
+    if: failure() && needs.deploy-production.result == 'failure'
+
+    steps:
+      - name: Rollback production deployment
+        env:
+          HEROKU_API_KEY: ${{ env.HEROKU_API_KEY }}
+        run: |
+          echo "$HEROKU_API_KEY" | heroku auth:token
+          heroku releases:rollback --app dinnermatch-production
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "⚠️ Production deployment failed and was rolled back"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

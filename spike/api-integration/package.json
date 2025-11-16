@@ -1,0 +1,23 @@
+{
+  "name": "dinnermatch-api-integration",
+  "version": "1.0.0",
+  "description": "API integration testing for DinnerMatch restaurant and recipe APIs",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-json-modules test-runner.js",
+    "test:restaurants": "node restaurant-api-test.js",
+    "test:recipes": "node recipe-api-test.js",
+    "test:all": "npm run test:restaurants && npm run test:recipes",
+    "setup": "node setup-env.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0"
+  },
+  "keywords": ["api", "integration", "testing", "restaurants", "recipes"],
+  "author": "DinnerMatch Team",
+  "license": "MIT"
+}

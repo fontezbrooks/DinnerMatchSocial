@@ -2,10 +2,25 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/constants/*": ["./constants/*"],
+      "@/features/*": ["./features/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/types/*": ["./types/*"],
+      "@/utils/*": ["./utils/*"]
     }
   },
   "include": [
@@ -13,5 +28,11 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".expo",
+    "dist",
+    "build"
   ]
 }

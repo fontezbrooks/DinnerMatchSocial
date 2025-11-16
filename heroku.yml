@@ -1,0 +1,11 @@
+build:
+  docker:
+    web: apps/backend/Dockerfile
+  config:
+    NODE_ENV: production
+release:
+  command:
+    - cd apps/backend && npm run migrate:latest
+  image: web
+run:
+  web: cd apps/backend && npm start

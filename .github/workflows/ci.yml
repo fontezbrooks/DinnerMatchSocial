@@ -1,0 +1,293 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18'
+  POSTGRES_DB: dinnermatch_test
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  REDIS_URL: redis://localhost:6379
+  JWT_SECRET: test-jwt-secret-for-ci
+
+jobs:
+  test-backend:
+    name: Backend Tests & Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/backend
+        run: npm ci
+
+      - name: TypeScript type checking
+        working-directory: apps/backend
+        run: npx tsc --noEmit
+
+      - name: ESLint code quality check
+        working-directory: apps/backend
+        run: npx eslint . --ext .ts,.js --format compact
+
+      - name: Prettier code formatting check
+        working-directory: apps/backend
+        run: npx prettier --check "src/**/*.{ts,js,json}"
+
+      - name: Run database migrations
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+        run: npx knex migrate:latest
+
+      - name: Run unit tests
+        working-directory: apps/backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+        run: npm test -- --coverage
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: apps/backend/coverage/coverage-final.json
+          flags: backend
+          name: backend-coverage
+
+  test-frontend:
+    name: Frontend Tests & Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/frontend
+        run: npm ci
+
+      - name: TypeScript type checking
+        working-directory: apps/frontend
+        run: npm run type-check
+
+      - name: ESLint code quality check
+        working-directory: apps/frontend
+        run: npm run lint
+
+      - name: Prettier code formatting check
+        working-directory: apps/frontend
+        run: npm run format:check
+
+      - name: Run unit tests
+        working-directory: apps/frontend
+        run: npm test -- --coverage --watchAll=false
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: apps/frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies (Backend)
+        working-directory: apps/backend
+        run: npm ci
+
+      - name: Install dependencies (Frontend)
+        working-directory: apps/frontend
+        run: npm ci
+
+      - name: Security audit (Backend)
+        working-directory: apps/backend
+        run: npm audit --audit-level=critical
+
+      - name: Security audit (Frontend)
+        working-directory: apps/frontend
+        run: npm audit --audit-level=critical
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+  build-test:
+    name: Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/backend
+          file: apps/backend/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/frontend
+          file: apps/frontend/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [test-backend, test-frontend]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Start services with Docker Compose
+        run: |
+          docker-compose -f docker-compose.yml up -d postgres redis
+          sleep 10
+
+      - name: Install backend dependencies
+        working-directory: apps/backend
+        run: npm ci
+
+      - name: Run database migrations
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dinnermatch
+        run: npx knex migrate:latest
+
+      - name: Run integration tests
+        working-directory: apps/backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dinnermatch
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret
+        run: npm run test:integration
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  validation-summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, security-scan, build-test, integration-tests, code-quality]
+    if: always()
+
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "Backend Tests: ${{ needs.test-backend.result }}"
+          echo "Frontend Tests: ${{ needs.test-frontend.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Build Test: ${{ needs.build-test.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "Code Quality: ${{ needs.code-quality.result }}"
+
+          if [[ "${{ needs.test-backend.result }}" != "success" ||
+                "${{ needs.test-frontend.result }}" != "success" ||
+                "${{ needs.security-scan.result }}" != "success" ||
+                "${{ needs.build-test.result }}" != "success" ||
+                "${{ needs.integration-tests.result }}" != "success" ||
+                "${{ needs.code-quality.result }}" != "success" ]]; then
+            echo "❌ Some checks failed"
+            exit 1
+          else
+            echo "✅ All checks passed"
+          fi

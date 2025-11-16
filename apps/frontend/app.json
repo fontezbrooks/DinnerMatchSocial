@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "DinnerMatch",
+    "slug": "dinnermatch-social",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "dinnermatch",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,7 +14,16 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "associatedDomains": ["applinks:dinnermatch.app"],
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "dinnermatch-deep-link",
+            "CFBundleURLSchemes": ["dinnermatch"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +31,23 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "dinnermatch.app"
+            },
+            {
+              "scheme": "dinnermatch"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

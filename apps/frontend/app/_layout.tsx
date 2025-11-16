@@ -9,10 +9,12 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-reanimated";
-import { ClerkProvider } from "@clerk/clerk-expo";
+import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { ENV } from "@/utils/env";
+import { useDeepLinking } from "@/hooks/useDeepLinking";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -51,17 +53,47 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
-function RootLayoutNav() {
+function InitialLayout() {
+  const { isLoaded, isSignedIn } = useAuth();
   const colorScheme = useColorScheme();
 
+  // Initialize deep linking
+  useDeepLinking();
+
+  // Show loading screen while Clerk loads
+  if (!isLoaded) {
+    return null;
+  }
+
   return (
-    <ClerkProvider tokenCache={tokenCache}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(home)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        </Stack>
-      </ThemeProvider>
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
+        {isSignedIn ? (
+          // Authenticated stack
+          <>
+            <Stack.Screen name="(home)" />
+            <Stack.Screen name="modal" options={{
+              presentation: "modal",
+              headerShown: true,
+              title: "Details"
+            }} />
+          </>
+        ) : (
+          // Unauthenticated stack
+          <Stack.Screen name="(auth)" />
+        )}
+      </Stack>
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutNav() {
+  return (
+    <ClerkProvider
+      tokenCache={tokenCache}
+      publishableKey={ENV.CLERK_PUBLISHABLE_KEY}
+    >
+      <InitialLayout />
     </ClerkProvider>
   );
 }

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DinnerMatch WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .panel h2 {
+            margin-bottom: 20px;
+            color: #4a5568;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .connection-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .button:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button.secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .button.secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .button.danger {
+            background: #f56565;
+        }
+
+        .button.danger:hover {
+            background: #e53e3e;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status.disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .status.connecting {
+            background: #feebc8;
+            color: #7b341e;
+            border: 1px solid #f6ad55;
+        }
+
+        .swipe-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .swipe-btn {
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .swipe-left {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .swipe-left:hover {
+            background: #feb2b2;
+        }
+
+        .swipe-right {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+
+        .swipe-right:hover {
+            background: #9ae6b4;
+        }
+
+        .swipe-up {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .swipe-up:hover {
+            background: #90cdf4;
+        }
+
+        .metrics {
+            background: #edf2f7;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .metrics h3 {
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 12px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .log-entry.info {
+            background: rgba(66, 153, 225, 0.2);
+        }
+
+        .log-entry.success {
+            background: rgba(72, 187, 120, 0.2);
+        }
+
+        .log-entry.error {
+            background: rgba(245, 101, 101, 0.2);
+        }
+
+        .log-entry.swipe {
+            background: rgba(236, 201, 75, 0.2);
+        }
+
+        .timestamp {
+            color: #a0aec0;
+            font-size: 12px;
+        }
+
+        .partner-swipes {
+            background: #f0fff4;
+            border: 2px solid #9ae6b4;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .partner-swipe {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .auto-swipe-controls {
+            background: #fff5f5;
+            border: 2px solid #fed7d7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .auto-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .auto-controls input[type="number"] {
+            width: 80px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 16px;
+            }
+
+            .swipe-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Connection Panel -->
+        <div class="panel">
+            <h2>🔌 Connection & Room Management</h2>
+
+            <div class="connection-section">
+                <div id="connection-status" class="status disconnected">
+                    🔴 Disconnected
+                </div>
+
+                <div class="form-group">
+                    <label for="server-url">Server URL:</label>
+                    <input type="text" id="server-url" value="http://localhost:3001">
+                </div>
+
+                <div class="form-group">
+                    <label for="user-id">User ID:</label>
+                    <input type="text" id="user-id" value="" placeholder="Enter your user ID">
+                </div>
+
+                <button id="connect-btn" class="button">Connect to Server</button>
+                <button id="disconnect-btn" class="button danger" disabled>Disconnect</button>
+            </div>
+
+            <div class="connection-section">
+                <h3>Room Management</h3>
+
+                <div class="form-group">
+                    <label for="room-id">Room ID (optional for joining):</label>
+                    <input type="text" id="room-id" placeholder="Leave empty to create new room">
+                </div>
+
+                <button id="create-room-btn" class="button" disabled>Create New Room</button>
+                <button id="join-room-btn" class="button secondary" disabled>Join Existing Room</button>
+
+                <div id="room-status" style="margin-top: 16px;"></div>
+            </div>
+
+            <div class="metrics">
+                <h3>📊 Real-time Metrics</h3>
+                <div class="metric-row">
+                    <span>Connection Status:</span>
+                    <span id="metric-status" class="metric-value">Disconnected</span>
+                </div>
+                <div class="metric-row">
+                    <span>Room ID:</span>
+                    <span id="metric-room" class="metric-value">None</span>
+                </div>
+                <div class="metric-row">
+                    <span>Users in Room:</span>
+                    <span id="metric-users" class="metric-value">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Messages Sent:</span>
+                    <span id="metric-sent" class="metric-value">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Messages Received:</span>
+                    <span id="metric-received" class="metric-value">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>Average Latency:</span>
+                    <span id="metric-latency" class="metric-value">0ms</span>
+                </div>
+                <div class="metric-row">
+                    <span>Last Ping:</span>
+                    <span id="metric-ping" class="metric-value">N/A</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Testing Panel -->
+        <div class="panel">
+            <h2>🧪 Swipe Testing & Monitoring</h2>
+
+            <div class="swipe-controls">
+                <button id="swipe-left" class="swipe-btn swipe-left" disabled>
+                    👈 Pass
+                </button>
+                <button id="swipe-right" class="swipe-btn swipe-right" disabled>
+                    👉 Like
+                </button>
+                <button id="swipe-up" class="swipe-btn swipe-up" disabled>
+                    👆 Super
+                </button>
+            </div>
+
+            <div class="auto-swipe-controls">
+                <h4>🤖 Auto Swipe Testing</h4>
+                <p>Automatically send swipes for latency testing</p>
+                <div class="auto-controls">
+                    <input type="number" id="swipe-interval" value="1000" min="100" max="5000" step="100">
+                    <label>ms interval</label>
+                    <button id="start-auto" class="button secondary" disabled>Start Auto</button>
+                    <button id="stop-auto" class="button danger" disabled>Stop Auto</button>
+                </div>
+            </div>
+
+            <div class="partner-swipes">
+                <h3>💕 Partner's Swipes</h3>
+                <div id="partner-swipes-container">
+                    <p style="text-align: center; color: #718096; margin: 20px 0;">
+                        Waiting for partner swipes...
+                    </p>
+                </div>
+            </div>
+
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3>📝 Activity Log</h3>
+                    <button id="clear-log" class="button secondary" style="width: auto; margin: 0;">Clear</button>
+                </div>
+                <div id="log" class="log"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button id="ping-test" class="button secondary" disabled>🏓 Ping Test</button>
+                <button id="performance-test" class="button secondary" disabled>⚡ Performance Test</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class DinnerMatchTestClient {
+            constructor() {
+                this.socket = null;
+                this.isConnected = false;
+                this.currentRoom = null;
+                this.userId = this.generateUserId();
+                this.metrics = {
+                    messagesSent: 0,
+                    messagesReceived: 0,
+                    latencyHistory: [],
+                    averageLatency: 0,
+                    lastPing: null
+                };
+                this.autoSwipeInterval = null;
+                this.pingTestInterval = null;
+
+                this.initializeUI();
+                this.bindEvents();
+            }
+
+            generateUserId() {
+                return 'user_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            initializeUI() {
+                // Set initial user ID
+                document.getElementById('user-id').value = this.userId;
+
+                // Update initial metrics
+                this.updateMetrics();
+            }
+
+            bindEvents() {
+                // Connection events
+                document.getElementById('connect-btn').addEventListener('click', () => this.connect());
+                document.getElementById('disconnect-btn').addEventListener('click', () => this.disconnect());
+
+                // Room events
+                document.getElementById('create-room-btn').addEventListener('click', () => this.createRoom());
+                document.getElementById('join-room-btn').addEventListener('click', () => this.joinRoom());
+
+                // Swipe events
+                document.getElementById('swipe-left').addEventListener('click', () => this.swipe('left'));
+                document.getElementById('swipe-right').addEventListener('click', () => this.swipe('right'));
+                document.getElementById('swipe-up').addEventListener('click', () => this.swipe('up'));
+
+                // Auto swipe events
+                document.getElementById('start-auto').addEventListener('click', () => this.startAutoSwipe());
+                document.getElementById('stop-auto').addEventListener('click', () => this.stopAutoSwipe());
+
+                // Test events
+                document.getElementById('ping-test').addEventListener('click', () => this.performPingTest());
+                document.getElementById('performance-test').addEventListener('click', () => this.performanceTest());
+
+                // Utility events
+                document.getElementById('clear-log').addEventListener('click', () => this.clearLog());
+            }
+
+            connect() {
+                const serverUrl = document.getElementById('server-url').value;
+                const userId = document.getElementById('user-id').value || this.userId;
+
+                this.userId = userId;
+
+                this.log('Connecting to server...', 'info');
+
+                this.socket = io(serverUrl, {
+                    transports: ['websocket', 'polling']
+                });
+
+                this.socket.on('connect', () => {
+                    this.isConnected = true;
+                    this.updateConnectionStatus('connected', '🟢 Connected');
+                    this.log(`Connected to server: ${serverUrl}`, 'success');
+                    this.updateMetrics();
+
+                    // Enable UI elements
+                    document.getElementById('create-room-btn').disabled = false;
+                    document.getElementById('join-room-btn').disabled = false;
+                    document.getElementById('ping-test').disabled = false;
+                    document.getElementById('connect-btn').disabled = true;
+                    document.getElementById('disconnect-btn').disabled = false;
+                });
+
+                this.socket.on('disconnect', (reason) => {
+                    this.isConnected = false;
+                    this.currentRoom = null;
+                    this.updateConnectionStatus('disconnected', '🔴 Disconnected');
+                    this.log(`Disconnected: ${reason}`, 'error');
+                    this.updateMetrics();
+                    this.disableRoomFeatures();
+                });
+
+                this.socket.on('connect_error', (error) => {
+                    this.log(`Connection error: ${error.message}`, 'error');
+                    this.updateConnectionStatus('disconnected', '🔴 Connection Failed');
+                });
+
+                this.socket.on('userJoined', (data) => {
+                    this.log(`User joined room: ${data.userId} (${data.usersCount}/2 users)`, 'info');
+                    this.updateRoomStatus(data);
+                });
+
+                this.socket.on('userLeft', (data) => {
+                    this.log(`User left room: ${data.userId} (${data.usersCount}/2 users)`, 'info');
+                    this.updateRoomStatus(data);
+                });
+
+                this.socket.on('partnerSwipe', (data) => {
+                    this.metrics.messagesReceived++;
+                    this.log(`Partner swiped ${data.direction} (latency: ${data.latency}ms)`, 'swipe');
+                    this.displayPartnerSwipe(data);
+                    this.updateMetrics();
+                });
+
+                this.socket.on('swipeAck', (data) => {
+                    this.metrics.latencyHistory.push(data.latency);
+                    if (this.metrics.latencyHistory.length > 100) {
+                        this.metrics.latencyHistory = this.metrics.latencyHistory.slice(-100);
+                    }
+                    this.calculateAverageLatency();
+                    this.updateMetrics();
+                });
+
+                this.socket.on('pong', (data) => {
+                    this.metrics.lastPing = data.latency;
+                    this.updateMetrics();
+                });
+
+                this.socket.on('matchFound', (data) => {
+                    this.log(`🎉 MATCH FOUND! Restaurant: ${data.restaurantId}`, 'success');
+                });
+
+                this.socket.on('error', (error) => {
+                    this.log(`Error: ${error.message}`, 'error');
+                });
+
+                this.updateConnectionStatus('connecting', '🟡 Connecting...');
+            }
+
+            disconnect() {
+                if (this.socket) {
+                    this.socket.disconnect();
+                    this.socket = null;
+                }
+                this.stopAutoSwipe();
+                this.clearPingTest();
+
+                // Reset UI
+                document.getElementById('connect-btn').disabled = false;
+                document.getElementById('disconnect-btn').disabled = true;
+                this.disableRoomFeatures();
+            }
+
+            createRoom() {
+                if (!this.isConnected) return;
+
+                const coupleId = document.getElementById('room-id').value || null;
+
+                this.socket.emit('createRoom', {
+                    coupleId,
+                    userId: this.userId
+                }, (response) => {
+                    if (response.success) {
+                        this.currentRoom = response.roomId;
+                        this.log(`Room created: ${response.roomId}`, 'success');
+                        this.enableRoomFeatures();
+                        document.getElementById('room-id').value = response.roomId;
+                    } else {
+                        this.log(`Failed to create room: ${response.message}`, 'error');
+                    }
+                });
+            }
+
+            joinRoom() {
+                if (!this.isConnected) return;
+
+                const roomId = document.getElementById('room-id').value;
+                if (!roomId) {
+                    this.log('Please enter a room ID to join', 'error');
+                    return;
+                }
+
+                this.socket.emit('joinRoom', {
+                    roomId,
+                    userId: this.userId
+                }, (response) => {
+                    if (response.success) {
+                        this.currentRoom = roomId;
+                        this.log(`Joined room: ${roomId}`, 'success');
+                        this.enableRoomFeatures();
+                    } else {
+                        this.log(`Failed to join room: ${response.message}`, 'error');
+                    }
+                });
+            }
+
+            swipe(direction) {
+                if (!this.currentRoom || !this.isConnected) return;
+
+                const restaurantId = `restaurant_${Math.floor(Math.random() * 1000)}`;
+                const messageId = `msg_${Date.now()}_${Math.random()}`;
+
+                this.socket.emit('swipe', {
+                    roomId: this.currentRoom,
+                    direction,
+                    timestamp: Date.now(),
+                    restaurantId,
+                    messageId
+                });
+
+                this.metrics.messagesSent++;
+                this.log(`Swiped ${direction} on ${restaurantId}`, 'swipe');
+                this.updateMetrics();
+            }
+
+            startAutoSwipe() {
+                if (this.autoSwipeInterval) return;
+
+                const interval = parseInt(document.getElementById('swipe-interval').value) || 1000;
+                const directions = ['left', 'right', 'up'];
+
+                this.autoSwipeInterval = setInterval(() => {
+                    const randomDirection = directions[Math.floor(Math.random() * directions.length)];
+                    this.swipe(randomDirection);
+                }, interval);
+
+                document.getElementById('start-auto').disabled = true;
+                document.getElementById('stop-auto').disabled = false;
+                this.log(`Started auto swipe (${interval}ms interval)`, 'info');
+            }
+
+            stopAutoSwipe() {
+                if (this.autoSwipeInterval) {
+                    clearInterval(this.autoSwipeInterval);
+                    this.autoSwipeInterval = null;
+                }
+
+                document.getElementById('start-auto').disabled = false;
+                document.getElementById('stop-auto').disabled = true;
+                this.log('Stopped auto swipe', 'info');
+            }
+
+            performPingTest() {
+                if (!this.isConnected) return;
+
+                this.socket.emit('ping', {
+                    timestamp: Date.now()
+                });
+
+                this.log('Ping sent', 'info');
+            }
+
+            performanceTest() {
+                if (!this.isConnected || !this.currentRoom) return;
+
+                this.log('Starting performance test (50 rapid swipes)', 'info');
+
+                for (let i = 0; i < 50; i++) {
+                    setTimeout(() => {
+                        const direction = ['left', 'right', 'up'][i % 3];
+                        this.swipe(direction);
+                    }, i * 50); // 20 swipes per second
+                }
+            }
+
+            displayPartnerSwipe(data) {
+                const container = document.getElementById('partner-swipes-container');
+
+                // Remove "waiting" message if present
+                if (container.querySelector('p')) {
+                    container.innerHTML = '';
+                }
+
+                const swipeElement = document.createElement('div');
+                swipeElement.className = 'partner-swipe';
+
+                const directionEmoji = {
+                    'left': '👈',
+                    'right': '👉',
+                    'up': '👆'
+                };
+
+                swipeElement.innerHTML = `
+                    <span>${directionEmoji[data.direction]} ${data.direction.toUpperCase()}</span>
+                    <span>${data.latency}ms</span>
+                `;
+
+                container.prepend(swipeElement);
+
+                // Keep only last 10 swipes
+                while (container.children.length > 10) {
+                    container.removeChild(container.lastChild);
+                }
+            }
+
+            calculateAverageLatency() {
+                if (this.metrics.latencyHistory.length === 0) {
+                    this.metrics.averageLatency = 0;
+                } else {
+                    const sum = this.metrics.latencyHistory.reduce((a, b) => a + b, 0);
+                    this.metrics.averageLatency = Math.round(sum / this.metrics.latencyHistory.length);
+                }
+            }
+
+            updateConnectionStatus(status, text) {
+                const statusElement = document.getElementById('connection-status');
+                statusElement.className = `status ${status}`;
+                statusElement.textContent = text;
+            }
+
+            updateRoomStatus(data) {
+                const statusElement = document.getElementById('room-status');
+                statusElement.innerHTML = `
+                    <div class="status connected">
+                        🏠 Room: ${data.roomId}<br>
+                        👥 Users: ${data.usersCount}/2
+                    </div>
+                `;
+            }
+
+            updateMetrics() {
+                document.getElementById('metric-status').textContent = this.isConnected ? 'Connected' : 'Disconnected';
+                document.getElementById('metric-room').textContent = this.currentRoom || 'None';
+                document.getElementById('metric-sent').textContent = this.metrics.messagesSent;
+                document.getElementById('metric-received').textContent = this.metrics.messagesReceived;
+                document.getElementById('metric-latency').textContent = this.metrics.averageLatency + 'ms';
+                document.getElementById('metric-ping').textContent = this.metrics.lastPing !== null ? this.metrics.lastPing + 'ms' : 'N/A';
+
+                // Update users count if we have room data
+                const usersSpan = document.getElementById('metric-users');
+                if (this.currentRoom) {
+                    // You could track this better with room data from server
+                    usersSpan.textContent = this.isConnected ? '1+' : '0';
+                } else {
+                    usersSpan.textContent = '0';
+                }
+            }
+
+            enableRoomFeatures() {
+                document.getElementById('swipe-left').disabled = false;
+                document.getElementById('swipe-right').disabled = false;
+                document.getElementById('swipe-up').disabled = false;
+                document.getElementById('start-auto').disabled = false;
+                document.getElementById('performance-test').disabled = false;
+                this.updateMetrics();
+            }
+
+            disableRoomFeatures() {
+                document.getElementById('swipe-left').disabled = true;
+                document.getElementById('swipe-right').disabled = true;
+                document.getElementById('swipe-up').disabled = true;
+                document.getElementById('start-auto').disabled = true;
+                document.getElementById('stop-auto').disabled = true;
+                document.getElementById('performance-test').disabled = true;
+                document.getElementById('create-room-btn').disabled = true;
+                document.getElementById('join-room-btn').disabled = true;
+                document.getElementById('ping-test').disabled = true;
+
+                this.stopAutoSwipe();
+                this.clearPingTest();
+                this.updateMetrics();
+            }
+
+            clearPingTest() {
+                if (this.pingTestInterval) {
+                    clearInterval(this.pingTestInterval);
+                    this.pingTestInterval = null;
+                }
+            }
+
+            log(message, type = 'info') {
+                const logContainer = document.getElementById('log');
+                const timestamp = new Date().toLocaleTimeString();
+
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${type}`;
+                logEntry.innerHTML = `
+                    <span class="timestamp">[${timestamp}]</span> ${message}
+                `;
+
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            clearLog() {
+                document.getElementById('log').innerHTML = '';
+            }
+        }
+
+        // Initialize the test client when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.testClient = new DinnerMatchTestClient();
+        });
+    </script>
+</body>
+</html>
