@@ -36,6 +36,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="swipe"
+        options={{
+          title: 'Swipe',
+          tabBarIcon: ({ color }) => <TabBarIcon name="heart" color={color} />,
+          headerTitle: 'Dinner Match',
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="groups"
         options={{
           title: 'Groups',

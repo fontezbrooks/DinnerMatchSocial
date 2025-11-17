@@ -52,6 +52,12 @@ export const handleDeepLink = (url: string) => {
 
   console.log('Deep link received:', { hostname, path, queryParams });
 
+  // Ignore Expo dev server URLs to prevent infinite loops
+  if (url.includes('exp://') || url.includes('localhost:8081')) {
+    console.log('Ignoring Expo dev server URL');
+    return;
+  }
+
   // Handle group invite links
   // Format: dinnermatch://invite/ABC123 or https://dinnermatch.app/invite/ABC123
   if (path?.includes('/invite/')) {
@@ -82,8 +88,10 @@ export const handleDeepLink = (url: string) => {
     }
   }
 
-  // Default fallback
-  router.push('/(home)/');
+  // Only navigate if it's a valid deep link, not a dev server URL
+  if (path && !url.includes('exp://')) {
+    router.push('/(home)/');
+  }
 };
 
 // Handle group invite deep links

@@ -2,7 +2,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
   DefaultTheme,
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -15,6 +15,7 @@ import { tokenCache } from "@clerk/clerk-expo/token-cache";
 import { useColorScheme } from "@/components/useColorScheme";
 import { ENV } from "@/utils/env";
 import { useDeepLinking } from "@/hooks/useDeepLinking";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -66,23 +67,25 @@ function InitialLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {isSignedIn ? (
-          // Authenticated stack
-          <>
-            <Stack.Screen name="(home)" />
-            <Stack.Screen name="modal" options={{
-              presentation: "modal",
-              headerShown: true,
-              title: "Details"
-            }} />
-          </>
-        ) : (
-          // Unauthenticated stack
-          <Stack.Screen name="(auth)" />
-        )}
-      </Stack>
+    <ThemeProvider colorScheme={colorScheme}>
+      <NavigationThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          {isSignedIn ? (
+            // Authenticated stack
+            <>
+              <Stack.Screen name="(home)" />
+              <Stack.Screen name="modal" options={{
+                presentation: "modal",
+                headerShown: true,
+                title: "Details"
+              }} />
+            </>
+          ) : (
+            // Unauthenticated stack
+            <Stack.Screen name="(auth)" />
+          )}
+        </Stack>
+      </NavigationThemeProvider>
     </ThemeProvider>
   );
 }

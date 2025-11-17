@@ -1,6 +1,8 @@
+import { createServer } from 'http';
 import app from './app';
 import { env } from './config/env';
 import { testDatabaseConnection } from './config/database';
+import { DinnerMatchSocketServer } from './socket/socketServer';
 
 const PORT = env.PORT;
 
@@ -15,12 +17,43 @@ async function startServer() {
       process.exit(1);
     }
 
+    // Create HTTP server
+    const httpServer = createServer(app);
+
+    // Initialize Socket.io server
+    const socketServer = new DinnerMatchSocketServer(httpServer);
+    console.log('⚡ Socket.io server initialized');
+
     // Start the server
-    app.listen(PORT, () => {
-      console.log(`🚀 DinnerMatch API server running on port ${PORT}`);
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 DinnerMatch server running on port ${PORT}`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
+      console.log(`🔌 Socket.io server ready for connections`);
       console.log(`🌍 Environment: ${env.NODE_ENV}`);
     });
+
+    // Graceful shutdown handler
+    const gracefulShutdown = async () => {
+      console.log('📴 Received shutdown signal, starting graceful shutdown...');
+
+      try {
+        await socketServer.shutdown();
+        httpServer.close(() => {
+          console.log('✅ HTTP server closed');
+          process.exit(0);
+        });
+      } catch (error) {
+        console.error('❌ Error during shutdown:', error);
+        process.exit(1);
+      }
+    };
+
+    // Override existing shutdown handlers
+    process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGINT');
+
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
 
   } catch (error) {
     console.error('❌ Failed to start server:', error);
