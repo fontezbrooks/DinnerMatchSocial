@@ -1,56 +1,56 @@
-require('dotenv').config();
+require("dotenv").config();
 
 module.exports = {
   development: {
-    client: 'postgresql',
+    client: "postgresql",
     connection: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      database: process.env.DB_NAME || 'dinnermatch',
-      user: process.env.DB_USER || 'dinnermatch_user',
-      password: process.env.DB_PASSWORD || 'password'
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT2,
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
     },
     migrations: {
-      directory: './migrations',
-      extension: 'ts'
+      directory: "./migrations",
+      extension: "ts",
     },
     seeds: {
-      directory: './seeds',
-      extension: 'ts'
-    }
+      directory: "./seeds",
+      extension: "ts",
+    },
   },
 
   staging: {
-    client: 'postgresql',
+    client: "postgresql",
     connection: process.env.DATABASE_URL,
     pool: {
       min: 2,
-      max: 10
+      max: 10,
     },
     migrations: {
-      directory: './migrations',
-      extension: 'ts'
+      directory: "./migrations",
+      extension: "ts",
     },
     seeds: {
-      directory: './seeds',
-      extension: 'ts'
-    }
+      directory: "./seeds",
+      extension: "ts",
+    },
   },
 
   production: {
-    client: 'postgresql',
+    client: "postgresql",
     connection: process.env.DATABASE_URL,
     pool: {
       min: 2,
-      max: 10
+      max: 10,
     },
     migrations: {
-      directory: './migrations',
-      extension: 'ts'
+      directory: "./migrations",
+      extension: "ts",
     },
     seeds: {
-      directory: './seeds',
-      extension: 'ts'
-    }
-  }
+      directory: "./seeds",
+      extension: "ts",
+    },
+  },
 };

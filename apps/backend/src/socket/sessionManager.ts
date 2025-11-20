@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events';
-import Redis from 'ioredis';
+import { EventEmitter } from "events";
+import Redis from "ioredis";
 import {
   SessionRoom,
   SessionUser,
@@ -8,9 +8,9 @@ import {
   SessionState,
   TimerState,
   RestaurantItem,
-  SessionSettings
-} from './types';
-import { MatchDetectionService } from './matchDetection';
+  SessionSettings,
+} from "./types";
+import { MatchDetectionService } from "./matchDetection";
 
 export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionRoom> = new Map();
@@ -28,28 +28,28 @@ export class SessionManager extends EventEmitter {
 
   private setupRedisListeners() {
     // Subscribe to session events from other instances
-    this.redis.subscribe('session:update', 'session:timer', 'session:vote');
+    this.redis.subscribe("session:update", "session:timer", "session:vote");
 
-    this.redis.on('message', (channel, message) => {
+    this.redis.on("message", (channel, message) => {
       try {
         const data = JSON.parse(message);
         this.handleRedisMessage(channel, data);
       } catch (error) {
-        console.error('Error parsing Redis message:', error);
+        console.error("Error parsing Redis message:", error);
       }
     });
   }
 
   private handleRedisMessage(channel: string, data: any) {
     switch (channel) {
-      case 'session:update':
-        this.emit('session_state_changed', data);
+      case "session:update":
+        this.emit("session_state_changed", data);
         break;
-      case 'session:timer':
+      case "session:timer":
         this.handleRemoteTimer(data);
         break;
-      case 'session:vote':
-        this.emit('remote_vote', data);
+      case "session:vote":
+        this.emit("remote_vote", data);
         break;
     }
   }
@@ -64,7 +64,7 @@ export class SessionManager extends EventEmitter {
     // Check if user is already in another session
     const existingSessionId = this.userSessions.get(userId);
     if (existingSessionId && existingSessionId !== sessionId) {
-      throw new Error('User already in another session');
+      throw new Error("User already in another session");
     }
 
     let session = this.sessions.get(sessionId);
@@ -75,15 +75,15 @@ export class SessionManager extends EventEmitter {
         sessionId,
         groupId,
         users: new Map(),
-        status: 'pending',
+        status: "pending",
         currentRound: 1,
         votedUsers: new Set(),
         settings: {
           maxRounds: 5,
           timePerRound: 30,
-          energyLevel: 'medium',
-          requireAllVotes: true
-        }
+          energyLevel: "medium",
+          requireAllVotes: true,
+        },
       };
       this.sessions.set(sessionId, session);
     }
@@ -91,10 +91,10 @@ export class SessionManager extends EventEmitter {
     // Add user to session
     const user: SessionUser = {
       userId,
-      socketId: '',
+      socketId: "",
       username,
       isHost: session.users.size === 0 || isHost,
-      joinedAt: new Date()
+      joinedAt: new Date(),
     };
 
     session.users.set(userId, user);
@@ -156,11 +156,11 @@ export class SessionManager extends EventEmitter {
   }> {
     const session = this.sessions.get(swipeEvent.sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      throw new Error("Session not found");
     }
 
-    if (session.status !== 'voting') {
-      throw new Error('Session is not in voting state');
+    if (session.status !== "voting") {
+      throw new Error("Session is not in voting state");
     }
 
     // Record the vote in database
@@ -170,23 +170,27 @@ export class SessionManager extends EventEmitter {
     session.votedUsers.add(swipeEvent.userId);
 
     // Check if all users have voted
-    const requiredVotes = session.settings.requireAllVotes ?
-      session.users.size : Math.ceil(session.users.size / 2);
+    const requiredVotes = session.settings.requireAllVotes
+      ? session.users.size
+      : Math.ceil(session.users.size / 2);
 
     const isRoundComplete = session.votedUsers.size >= requiredVotes;
     let matches: MatchResult[] = [];
 
     if (isRoundComplete) {
       // Calculate matches for this round
-      matches = await this.calculateMatches(swipeEvent.sessionId, session.currentRound);
+      matches = await this.calculateMatches(
+        swipeEvent.sessionId,
+        session.currentRound
+      );
 
       if (matches.length > 0) {
         // Found matches, session is complete
-        session.status = 'completed';
+        session.status = "completed";
         this.clearTimer(swipeEvent.sessionId);
       } else if (session.currentRound >= session.settings.maxRounds) {
         // No more rounds, session complete without matches
-        session.status = 'completed';
+        session.status = "completed";
         this.clearTimer(swipeEvent.sessionId);
       } else {
         // Move to next round
@@ -199,33 +203,39 @@ export class SessionManager extends EventEmitter {
     await this.persistSessionState(session);
 
     // Publish vote event to Redis for other instances
-    await this.redis.publish('session:vote', JSON.stringify({
-      sessionId: swipeEvent.sessionId,
-      userId: swipeEvent.userId,
-      vote: swipeEvent.vote,
-      isRoundComplete,
-      matches
-    }));
+    await this.redis.publish(
+      "session:vote",
+      JSON.stringify({
+        sessionId: swipeEvent.sessionId,
+        userId: swipeEvent.userId,
+        vote: swipeEvent.vote,
+        isRoundComplete,
+        matches,
+      })
+    );
 
     return { session, isRoundComplete, matches };
   }
 
-  async startSession(sessionId: string, hostUserId: string): Promise<SessionRoom> {
+  async startSession(
+    sessionId: string,
+    hostUserId: string
+  ): Promise<SessionRoom> {
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      throw new Error("Session not found");
     }
 
     const host = session.users.get(hostUserId);
     if (!host?.isHost) {
-      throw new Error('Only host can start session');
+      throw new Error("Only host can start session");
     }
 
     if (session.users.size < 2) {
-      throw new Error('Need at least 2 users to start session');
+      throw new Error("Need at least 2 users to start session");
     }
 
-    session.status = 'active';
+    session.status = "active";
     await this.persistSessionState(session);
 
     return session;
@@ -238,10 +248,10 @@ export class SessionManager extends EventEmitter {
   ): Promise<SessionRoom> {
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      throw new Error("Session not found");
     }
 
-    session.status = 'voting';
+    session.status = "voting";
     session.currentItem = item;
     session.votedUsers.clear();
 
@@ -260,7 +270,7 @@ export class SessionManager extends EventEmitter {
 
     const session = this.sessions.get(sessionId);
     if (!session) {
-      throw new Error('Session not found');
+      throw new Error("Session not found");
     }
 
     const endTime = new Date(Date.now() + seconds * 1000);
@@ -271,38 +281,44 @@ export class SessionManager extends EventEmitter {
       sessionId,
       timeRemaining: seconds,
       isActive: true,
-      endTime
+      endTime,
     };
 
     // Publish timer start to Redis
-    await this.redis.publish('session:timer', JSON.stringify({
-      action: 'start',
-      sessionId,
-      endTime: endTime.toISOString(),
-      duration: seconds
-    }));
+    await this.redis.publish(
+      "session:timer",
+      JSON.stringify({
+        action: "start",
+        sessionId,
+        endTime: endTime.toISOString(),
+        duration: seconds,
+      })
+    );
 
     // Set up countdown
     const timer = setInterval(async () => {
-      const remaining = Math.max(0, Math.floor((endTime.getTime() - Date.now()) / 1000));
+      const remaining = Math.max(
+        0,
+        Math.floor((endTime.getTime() - Date.now()) / 1000)
+      );
 
       if (remaining <= 0) {
         // Timer expired
         this.clearTimer(sessionId);
-        this.emit('timer_expired', { sessionId });
+        this.emit("timer_expired", { sessionId });
 
         // Auto-advance if configured
         await this.handleTimerExpiration(sessionId);
       } else {
         // Emit timer updates
-        this.emit('timer_tick', { sessionId, timeRemaining: remaining });
+        this.emit("timer_tick", { sessionId, timeRemaining: remaining });
 
         // Send warnings
         if (remaining === 30 || remaining === 10) {
-          this.emit('timer_warning', {
+          this.emit("timer_warning", {
             sessionId,
             timeRemaining: remaining,
-            level: remaining === 10 ? 'critical' : 'low'
+            level: remaining === 10 ? "critical" : "low",
           });
         }
       }
@@ -325,28 +341,37 @@ export class SessionManager extends EventEmitter {
     if (!session) return;
 
     // Force advance to next round or complete session
-    if (session.status === 'voting') {
-      const matches = await this.calculateMatches(sessionId, session.currentRound);
+    if (session.status === "voting") {
+      const matches = await this.calculateMatches(
+        sessionId,
+        session.currentRound
+      );
 
-      if (matches.length > 0 || session.currentRound >= session.settings.maxRounds) {
-        session.status = 'completed';
+      if (
+        matches.length > 0 ||
+        session.currentRound >= session.settings.maxRounds
+      ) {
+        session.status = "completed";
       } else {
         // Next round
         session.currentRound++;
         session.votedUsers.clear();
         session.currentItem = undefined;
-        session.status = 'active';
+        session.status = "active";
       }
 
       await this.persistSessionState(session);
     }
   }
 
-  private async handleRemoteTimer(data: any): void {
-    if (data.action === 'start') {
+  private async handleRemoteTimer(data: any): Promise<void> {
+    if (data.action === "start") {
       // Sync timer from another instance
       const endTime = new Date(data.endTime);
-      const remaining = Math.max(0, Math.floor((endTime.getTime() - Date.now()) / 1000));
+      const remaining = Math.max(
+        0,
+        Math.floor((endTime.getTime() - Date.now()) / 1000)
+      );
 
       if (remaining > 0) {
         await this.startTimer(data.sessionId, remaining);
@@ -365,22 +390,29 @@ export class SessionManager extends EventEmitter {
         this.getSession(swipeEvent.sessionId)?.currentRound || 1
       );
     } catch (error) {
-      console.error('❌ Error recording vote:', error);
+      console.error("❌ Error recording vote:", error);
       throw error;
     }
   }
 
-  private async calculateMatches(sessionId: string, round: number): Promise<MatchResult[]> {
+  private async calculateMatches(
+    sessionId: string,
+    round: number
+  ): Promise<MatchResult[]> {
     try {
       const session = this.getSession(sessionId);
       if (!session) {
-        throw new Error('Session not found');
+        throw new Error("Session not found");
       }
 
       const requireAllUsers = session.settings.requireAllVotes;
-      return await this.matchDetection.calculateMatches(sessionId, round, requireAllUsers);
+      return await this.matchDetection.calculateMatches(
+        sessionId,
+        round,
+        requireAllUsers
+      );
     } catch (error) {
-      console.error('❌ Error calculating matches:', error);
+      console.error("❌ Error calculating matches:", error);
       throw error;
     }
   }
@@ -389,21 +421,24 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) return null;
 
-    const users = Array.from(session.users.values()).map(user => ({
+    const users = Array.from(session.users.values()).map((user) => ({
       userId: user.userId,
       username: user.username,
       isHost: user.isHost,
-      hasVoted: session.votedUsers.has(user.userId)
+      hasVoted: session.votedUsers.has(user.userId),
     }));
 
     let timer: TimerState | null = null;
     if (session.timerEndTime) {
-      const timeRemaining = Math.max(0, Math.floor((session.timerEndTime.getTime() - Date.now()) / 1000));
+      const timeRemaining = Math.max(
+        0,
+        Math.floor((session.timerEndTime.getTime() - Date.now()) / 1000)
+      );
       timer = {
         sessionId,
         timeRemaining,
         isActive: timeRemaining > 0,
-        endTime: session.timerEndTime
+        endTime: session.timerEndTime,
       };
     }
 
@@ -416,7 +451,7 @@ export class SessionManager extends EventEmitter {
       timer,
       currentItem: session.currentItem || null,
       settings: session.settings,
-      lastActivity: new Date()
+      lastActivity: new Date(),
     };
   }
 
@@ -437,8 +472,18 @@ export class SessionManager extends EventEmitter {
     return await this.matchDetection.getSessionMatches(sessionId);
   }
 
-  async hasUserVoted(sessionId: string, userId: string, itemId: string, roundNumber: number): Promise<boolean> {
-    return await this.matchDetection.hasUserVoted(sessionId, userId, itemId, roundNumber);
+  async hasUserVoted(
+    sessionId: string,
+    userId: string,
+    itemId: string,
+    roundNumber: number
+  ): Promise<boolean> {
+    return await this.matchDetection.hasUserVoted(
+      sessionId,
+      userId,
+      itemId,
+      roundNumber
+    );
   }
 
   private async persistSessionState(session: SessionRoom): Promise<void> {

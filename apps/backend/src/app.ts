@@ -13,6 +13,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import groupRoutes from './routes/groups';
 import sessionRoutes from './routes/sessions';
+import discoveryRoutes from './routes/discovery';
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/discovery', discoveryRoutes);
 
 // Swagger documentation
 const swaggerOptions = {
