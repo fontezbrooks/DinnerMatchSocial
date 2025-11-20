@@ -28,9 +28,9 @@ const envSchema = z.object({
   // CORS
   FRONTEND_URL: z.string().default('http://localhost:8081'),
 
-  // Third-party API Keys
-  YELP_API_KEY: z.string().min(10),
-  SPOONACULAR_API_KEY: z.string().min(10),
+  // Third-party API Keys (optional in development)
+  YELP_API_KEY: z.string().min(10).optional().default('dev_placeholder_yelp_key_minimum_10_chars'),
+  SPOONACULAR_API_KEY: z.string().min(10).optional().default('dev_placeholder_spoonacular_key_minimum_10_chars'),
 });
 
 export const env = envSchema.parse(process.env);

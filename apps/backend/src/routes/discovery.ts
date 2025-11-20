@@ -1,12 +1,12 @@
 import express from 'express';
 import { restaurantService, RestaurantSearchParams } from '../services/restaurantService';
 import { recipeService, RecipeSearchParams } from '../services/recipeService';
-import { auth } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
 
 // Apply authentication middleware to all discovery routes
-router.use(auth);
+router.use(authenticateToken);
 
 /**
  * Search restaurants by location and filters

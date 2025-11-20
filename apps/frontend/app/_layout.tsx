@@ -16,6 +16,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { ENV } from '@/utils/env';
 import { useDeepLinking } from '@/hooks/useDeepLinking';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { AuthStateManager } from '@/components/auth/AuthStateManager';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -55,7 +56,7 @@ export default function RootLayout() {
 }
 
 function InitialLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, user } = useAuth();
   const colorScheme = useColorScheme();
 
   // Initialize deep linking
@@ -66,16 +67,20 @@ function InitialLayout() {
     return null;
   }
 
+  // Additional check: If Clerk says signed in but no user object, force sign out
+  const shouldShowAuth = !isSignedIn || !user;
+
   return (
     <ThemeProvider colorScheme={colorScheme}>
+      <AuthStateManager />
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack screenOptions={{ headerShown: false }}>
-          {isSignedIn ? (
-            // Authenticated stack
-            <Stack.Screen name="(home)" />
-          ) : (
+          {shouldShowAuth ? (
             // Unauthenticated stack
             <Stack.Screen name="(auth)" />
+          ) : (
+            // Authenticated stack
+            <Stack.Screen name="(home)" />
           )}
         </Stack>
       </NavigationThemeProvider>

@@ -1,7 +1,7 @@
-import { useSignIn, useOAuth } from "@clerk/clerk-expo";
+import { useSignIn, useOAuth, useClerk } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
 import { StyleSheet, ScrollView, View, Text, Alert } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FontAwesome } from "@expo/vector-icons";
 
 import { Button, Input, Card, LoadingSpinner, ErrorMessage } from "@/components/ui";
@@ -12,6 +12,7 @@ export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const { startOAuthFlow: startGoogleOAuth } = useOAuth({ strategy: "oauth_google" });
   const { startOAuthFlow: startFacebookOAuth } = useOAuth({ strategy: "oauth_facebook" });
+  const { signOut } = useClerk();
   const router = useRouter();
   const theme = useTheme();
 
@@ -19,6 +20,19 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear any existing auth state on component mount
+  useEffect(() => {
+    const clearAuthState = async () => {
+      try {
+        await signOut();
+      } catch (error) {
+        // Ignore errors during cleanup
+        console.log('Auth cleanup completed');
+      }
+    };
+    clearAuthState();
+  }, [signOut]);
 
   const onSignInPress = async () => {
     if (!isLoaded) return;
@@ -40,7 +54,18 @@ export default function SignInScreen() {
       }
     } catch (err: any) {
       const errorMessage = err?.errors?.[0]?.message || "An error occurred during sign-in";
-      setError(errorMessage);
+
+      // Handle "already signed in" error by clearing auth state and retrying
+      if (errorMessage.toLowerCase().includes("already signed in")) {
+        try {
+          await signOut();
+          setError("Please try signing in again");
+        } catch (signOutError) {
+          setError("Authentication state error. Please restart the app.");
+        }
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +175,25 @@ export default function SignInScreen() {
           style={styles.signInButton}
         />
 
+        {error && error.toLowerCase().includes("already signed in") && (
+          <Button
+            title="Clear Auth State & Retry"
+            onPress={async () => {
+              try {
+                await signOut();
+                setError(null);
+                setEmailAddress("");
+                setPassword("");
+              } catch (e) {
+                setError("Please restart the app to clear auth state");
+              }
+            }}
+            variant="outline"
+            fullWidth
+            style={styles.clearAuthButton}
+          />
+        )}
+
         {ENV.ENABLE_SOCIAL_LOGIN && (
           <>
             <View style={styles.divider}>
@@ -227,6 +271,9 @@ const styles = StyleSheet.create({
   },
   signInButton: {
     marginTop: 8,
+  },
+  clearAuthButton: {
+    marginTop: 12,
   },
   divider: {
     flexDirection: 'row',
